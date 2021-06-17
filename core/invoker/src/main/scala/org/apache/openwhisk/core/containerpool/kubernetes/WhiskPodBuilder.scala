@@ -30,7 +30,9 @@ import io.fabric8.kubernetes.api.model.{
   LabelSelectorBuilder,
   Pod,
   PodBuilder,
-  Quantity
+  Quantity,
+  PersistentVolumeClaimVolumeSource,
+  EmptyDirVolumeSource
 }
 import io.fabric8.kubernetes.client.NamespacedKubernetesClient
 import org.apache.openwhisk.common.TransactionId
@@ -73,6 +75,7 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
     val pb1 = baseBuilder
       .editOrNewMetadata()
       .withName(name)
+      .addToLabels("testlabel", "testing")
       .addToLabels("name", name)
       .addToLabels("user-action-pod", "true")
       .addToLabels(labels.asJava)
@@ -126,19 +129,98 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
       .withContainerPort(8080)
       .withName("action")
       .endPort()
+      .addNewPort()
+      .withContainerPort(8081)
+      .withName("testport")
+      .endPort()
 
     //If any existing context entry is present then "update" it else add new
+    /*
     containerBuilder
       .editOrNewSecurityContext()
       .editOrNewCapabilities()
       .addToDrop("NET_RAW", "NET_ADMIN")
       .endCapabilities()
       .endSecurityContext()
+      */
 
-    val pod = containerBuilder
-      .endContainer()
-      .endSpec()
-      .build()
+    println(this, s"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXYYY")
+    val pod = if (name.contains("f3")) {
+      println(this, s"name: $name")
+      val Array(funcname, scname) = name.split("testfunc-").last.split("-sc-")
+      var pvcname = s"${funcname}-${scname}-pvc"
+
+      containerBuilder
+        .addNewVolumeMount()
+        .withName("data")
+        .withMountPath("/var/data/")
+        .endVolumeMount()
+
+        .addNewVolumeMount()
+        .withName("tmpdata")
+        .withMountPath("/var/tmpdata/")
+        .endVolumeMount()
+        .endContainer()
+
+        .addNewVolume()
+        .withName("data").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(pvcname, false))
+        .endVolume()
+        .addNewVolume()
+        .withName("tmpdata").withEmptyDir(new EmptyDirVolumeSource())
+        .endVolume()
+        .endSpec()
+        .build()
+    } else {
+      println(s"Uh did not work")
+      containerBuilder
+        .endContainer()
+        .endSpec()
+        .build()
+    }
+
+      /*
+    if (name.contains("hellotest")) {
+      containerBuilder
+        .addNewVolumeMount()
+        .withName("data")
+        .withMountPath("/var/data/")
+        .endVolumeMount()
+    }
+
+    if (name.contains("testfunc")) {
+      containerBuilder
+        .addNewVolumeMount()
+        .withName("data")
+        .withMountPath("/var/data/")
+        .endVolumeMount()
+    }
+
+    println(this, s"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+    val pod = if (name.contains("hellotest")) {
+      containerBuilder
+        .endContainer()
+        .addNewVolume()
+        .withName("data").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(name.split("-").last + "-pvc", false))
+        .endVolume()
+        .endSpec()
+        .build()
+    } else if (name.contains("hellonfstest")) {
+      println(this, s"adding container")
+      containerBuilder
+        .endContainer()
+        .addNewVolume()
+        .withName("data").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource("nfs-test-pvc", false))
+        .endVolume()
+        .endSpec()
+        .build()
+    } else {
+      println(s"Uh did not work")
+      containerBuilder
+        .endContainer()
+        .endSpec()
+        .build()
+    }*/
+
     val pdb = if (config.pdbEnabled) {
       Some(
         new PodDisruptionBudgetBuilder().withNewMetadata

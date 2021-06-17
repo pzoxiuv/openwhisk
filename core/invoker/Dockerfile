@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-FROM scala
+FROM kubes1:5000/scala
 
 ENV UID=1001 \
     NOT_ROOT_USER=owuser

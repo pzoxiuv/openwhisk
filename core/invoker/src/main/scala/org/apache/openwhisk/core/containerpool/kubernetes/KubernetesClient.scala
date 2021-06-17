@@ -152,6 +152,38 @@ class KubernetesClient(
       s"launching pod $name (image:$image, mem: ${memory.toMB}) (timeout: ${config.timeouts.run.toSeconds}s)",
       logLevel = akka.event.Logging.InfoLevel)
 
+    log.info(this, s"ENV: ${environment}")
+    log.info(this, s"ENV: ${name}")
+    log.info(this, s"ENV: ${labels}")
+
+    log.info(this, s"${Thread.dumpStack()}")
+
+    if (name.contains("testfunc")) {
+      val Array(funcname, scname) = name.split("testfunc-").last.split("-sc-")
+      var pvcname = s"${funcname}-${scname}-pvc"
+      Try {
+        val pvc = new PersistentVolumeClaimBuilder()
+          .withNewMetadata().withName(pvcname).endMetadata()
+          .withNewSpec()
+          .withStorageClassName(scname)
+          .withAccessModes("ReadWriteMany")
+          .withNewResources()
+          .addToRequests("storage", new Quantity("10Gi"))
+          .endResources()
+          .endSpec()
+          .build()
+        val created = kubeRestClient.persistentVolumeClaims().inNamespace(namespace).create(pvc)
+        created
+      } match {
+        case Failure(e) => {
+          log.info(this, s"Uh did not work ${e}")
+        }
+        case Success(createdPVC) => {
+          log.info(this, s"Did that work??????")
+        }
+      }
+    }
+
     //create the pod; catch any failure to end the transaction timer
     Try {
       val created = kubeRestClient.pods.inNamespace(namespace).create(pod)
