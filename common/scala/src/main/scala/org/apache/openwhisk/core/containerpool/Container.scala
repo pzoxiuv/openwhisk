@@ -84,6 +84,8 @@ trait Container {
   protected var containerHttpMaxConcurrent: Int = 1
   protected var containerHttpTimeout: FiniteDuration = 60.seconds
 
+  protected var f3SeqId: String = ""
+
   def containerId: ContainerId = id
 
   /** Stops the container from consuming CPU cycles. NOT thread-safe - caller must synchronize. */

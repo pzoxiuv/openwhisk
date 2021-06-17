@@ -62,7 +62,8 @@ class DockerContainerFactory(instance: InvokerInstanceId,
                                actionImage: ExecManifest.ImageName,
                                userProvidedImage: Boolean,
                                memory: ByteSize,
-                               cpuShares: Int)(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
+                               cpuShares: Int,
+                               f3SeqId: String)(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
     val registryConfig =
       ContainerFactory.resolveRegistryConfig(userProvidedImage, runtimesRegistryConfig, userImagesRegistryConfig)
     val image = if (userProvidedImage) Left(actionImage) else Right(actionImage)

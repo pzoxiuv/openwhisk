@@ -129,18 +129,27 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
           // Is there enough space on the invoker for this action to be executed.
           if (hasPoolSpaceFor(busyPool, r.action.limits.memory.megabytes.MB)) {
             // Schedule a job to a warm container
+            logging.info(this, s"ZZZZZZ ${r.msg}")
+            val unlockedArgs =
+              ContainerProxy.unlockArguments(r.msg.content, r.msg.lockedArgs, ParameterEncryption.singleton)
+            val (env, parameters) = ContainerProxy.partitionArguments(unlockedArgs, r.msg.initArgs)
+            val f3SeqId = parameters.getFields("f3SeqId") match {
+              case Seq(spray.json.JsString(id)) => id
+              case _ => ""
+            }
+            logging.info(this, s"GOT f3SeqId ${f3SeqId}")
             ContainerPool
-              .schedule(r.action, r.msg.user.namespace.name, freePool)
+              .schedule(r.action, r.msg.user.namespace.name, freePool, f3SeqId)
               .map(container => (container, container._2.initingState)) //warmed, warming, and warmingCold always know their state
               .orElse(
                 // There was no warm/warming/warmingCold container. Try to take a prewarm container or a cold container.
 
                 // Is there enough space to create a new container or do other containers have to be removed?
                 if (hasPoolSpaceFor(busyPool ++ freePool, r.action.limits.memory.megabytes.MB)) {
-                  takePrewarmContainer(r.action)
+                  takePrewarmContainer(r.action, f3SeqId)
                     .map(container => (container, "prewarmed"))
                     .orElse {
-                      val container = Some(createContainer(r.action.limits.memory.megabytes.MB), "cold")
+                      val container = Some(createContainer(r.action.limits.memory.megabytes.MB, f3SeqId), "cold")
                       incrementColdStartCount(r.action.exec.kind, r.action.limits.memory.megabytes.MB)
                       container
                     }
@@ -155,10 +164,10 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
                   // removing the containers, we are not interested anymore in the containers that have been removed.
                   .headOption
                   .map(_ =>
-                    takePrewarmContainer(r.action)
+                    takePrewarmContainer(r.action, f3SeqId)
                       .map(container => (container, "recreatedPrewarm"))
                       .getOrElse {
-                        val container = (createContainer(r.action.limits.memory.megabytes.MB), "recreated")
+                        val container = (createContainer(r.action.limits.memory.megabytes.MB, f3SeqId), "recreated")
                         incrementColdStartCount(r.action.exec.kind, r.action.limits.memory.megabytes.MB)
                         container
                     }))
@@ -357,9 +366,9 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
   }
 
   /** Creates a new container and updates state accordingly. */
-  def createContainer(memoryLimit: ByteSize): (ActorRef, ContainerData) = {
+  def createContainer(memoryLimit: ByteSize, f3SeqId: String): (ActorRef, ContainerData) = {
     val ref = childFactory(context)
-    val data = MemoryData(memoryLimit)
+    val data = MemoryData(memoryLimit, f3SeqId)
     freePool = freePool + (ref -> data)
     ref -> data
   }
@@ -393,14 +402,14 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
    * @param action the action that holds the kind and the required memory.
    * @return the container iff found
    */
-  def takePrewarmContainer(action: ExecutableWhiskAction): Option[(ActorRef, ContainerData)] = {
+  def takePrewarmContainer(action: ExecutableWhiskAction, f3SeqId: String): Option[(ActorRef, ContainerData)] = {
     val kind = action.exec.kind
     val memory = action.limits.memory.megabytes.MB
     val now = Deadline.now
     prewarmedPool.toSeq
       .sortBy(_._2.expires.getOrElse(now))
       .find {
-        case (_, PreWarmedData(_, `kind`, `memory`, _, _)) => true
+        case (_, PreWarmedData(_, `kind`, `memory`, `f3SeqId`, _, _)) => true
         case _                                             => false
       }
       .map {
@@ -493,21 +502,22 @@ object ContainerPool {
    */
   protected[containerpool] def schedule[A](action: ExecutableWhiskAction,
                                            invocationNamespace: EntityName,
-                                           idles: Map[A, ContainerData]): Option[(A, ContainerData)] = {
+                                           idles: Map[A, ContainerData],
+                                           f3SeqId: String): Option[(A, ContainerData)] = {
     idles
       .find {
-        case (_, c @ WarmedData(_, `invocationNamespace`, `action`, _, _, _)) if c.hasCapacity() => true
+        case (_, c @ WarmedData(_, `invocationNamespace`, `action`, `f3SeqId`, _, _, _)) if c.hasCapacity() => true
         case _                                                                                   => false
       }
       .orElse {
         idles.find {
-          case (_, c @ WarmingData(_, `invocationNamespace`, `action`, _, _)) if c.hasCapacity() => true
+          case (_, c @ WarmingData(_, `invocationNamespace`, `action`, _, `f3SeqId`, _)) if c.hasCapacity() => true
           case _                                                                                 => false
         }
       }
       .orElse {
         idles.find {
-          case (_, c @ WarmingColdData(`invocationNamespace`, `action`, _, _)) if c.hasCapacity() => true
+          case (_, c @ WarmingColdData(`invocationNamespace`, `action`, _, `f3SeqId`, _)) if c.hasCapacity() => true
           case _                                                                                  => false
         }
       }
@@ -575,7 +585,7 @@ object ContainerPool {
             val expiredPrewarmedContainer = prewarmedPool.toSeq
               .filter { warmInfo =>
                 warmInfo match {
-                  case (_, p @ PreWarmedData(_, `kind`, `memory`, _, _)) if p.isExpired() => true
+                  case (_, p @ PreWarmedData(_, `kind`, `memory`, "", _, _)) if p.isExpired() => true
                   case _                                                                  => false
                 }
               }
@@ -630,7 +640,7 @@ object ContainerPool {
 
       val runningCount = prewarmedPool.count {
         // done starting (include expired, since they may not have been removed yet)
-        case (_, p @ PreWarmedData(_, `kind`, `memory`, _, _)) => true
+        case (_, p @ PreWarmedData(_, `kind`, `memory`, "", _, _)) => true
         // started but not finished starting (or expired)
         case _ => false
       }

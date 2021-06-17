@@ -153,22 +153,24 @@ class KubernetesClient(
       logLevel = akka.event.Logging.InfoLevel)
 
     log.info(this, s"ENV: ${environment}")
+    /*
     log.info(this, s"ENV: ${name}")
     log.info(this, s"ENV: ${labels}")
+    */
 
     log.info(this, s"${Thread.dumpStack()}")
 
-    if (name.contains("testfunc")) {
-      val Array(funcname, scname) = name.split("testfunc-").last.split("-sc-")
-      var pvcname = s"${funcname}-${scname}-pvc"
+    // Provison new PVC:
+    if (environment.contains("__F3_SEQ_ID")) {
+      var pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
       Try {
         val pvc = new PersistentVolumeClaimBuilder()
           .withNewMetadata().withName(pvcname).endMetadata()
           .withNewSpec()
-          .withStorageClassName(scname)
+          .withStorageClassName("rook-cephfs")
           .withAccessModes("ReadWriteMany")
           .withNewResources()
-          .addToRequests("storage", new Quantity("10Gi"))
+          .addToRequests("storage", new Quantity("1000Gi"))
           .endResources()
           .endSpec()
           .build()
