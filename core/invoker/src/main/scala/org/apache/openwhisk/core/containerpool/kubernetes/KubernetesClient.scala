@@ -161,7 +161,8 @@ class KubernetesClient(
     log.info(this, s"${Thread.dumpStack()}")
 
     // Provison new PVC:
-    if (environment.contains("__F3_SEQ_ID")) {
+    log.info(this, s"${environment("__F3_SEQ_ID").length()}")
+    if (environment.contains("__F3_SEQ_ID") && environment("__F3_SEQ_ID").length() > 0) {
       var pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
       Try {
         val pvc = new PersistentVolumeClaimBuilder()

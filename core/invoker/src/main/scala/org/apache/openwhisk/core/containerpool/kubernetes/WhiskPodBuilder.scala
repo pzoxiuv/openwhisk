@@ -139,7 +139,7 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
       .endSecurityContext()
       */
 
-    val pod = if (environment.contains("__F3_SEQ_ID")) {
+    val pod = if (environment.contains("__F3_SEQ_ID") && environment("__F3_SEQ_ID").length() > 0) {
       var pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
 
       containerBuilder
