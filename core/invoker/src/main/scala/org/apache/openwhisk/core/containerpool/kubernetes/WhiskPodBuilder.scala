@@ -140,25 +140,26 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
       */
 
     val pod = if (environment.contains("__F3_SEQ_ID") && environment("__F3_SEQ_ID").length() > 0) {
-      var pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
+      var ceph_pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
+      var f3_pvcname = s"${environment("__F3_SEQ_ID")}-f3-pvc"
 
       containerBuilder
         .addNewVolumeMount()
-        .withName("intercept-pvc")
-        .withMountPath("/mnt/intercept/")
+        .withName("ceph-fs")
+        .withMountPath("/var/ceph")
         .endVolumeMount()
 
         .addNewVolumeMount()
-        .withName("data")
+        .withName("f3-fs")
         .withMountPath("/var/data/")
         .endVolumeMount()
         .endContainer()
 
         .addNewVolume()
-        .withName("intercept-pvc").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource("intercept-pvc", false))
+        .withName("ceph-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(ceph_pvcname, false))
         .endVolume()
         .addNewVolume()
-        .withName("data").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(pvcname, false))
+        .withName("f3-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(f3_pvcname, false))
         .endVolume()
       /*
       var pvcname = s"${funcname}-${scname}-pvc"

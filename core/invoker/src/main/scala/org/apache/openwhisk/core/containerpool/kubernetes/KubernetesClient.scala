@@ -163,10 +163,10 @@ class KubernetesClient(
     // Provison new PVC:
     log.info(this, s"${environment("__F3_SEQ_ID").length()}")
     if (environment.contains("__F3_SEQ_ID") && environment("__F3_SEQ_ID").length() > 0) {
-      var pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
+      var ceph_pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
       Try {
         val pvc = new PersistentVolumeClaimBuilder()
-          .withNewMetadata().withName(pvcname).endMetadata()
+          .withNewMetadata().withName(ceph_pvcname).endMetadata()
           .withNewSpec()
           .withStorageClassName("rook-cephfs")
           .withAccessModes("ReadWriteMany")
@@ -179,10 +179,32 @@ class KubernetesClient(
         created
       } match {
         case Failure(e) => {
-          log.info(this, s"Uh did not work ${e}")
+          log.info(this, s"Failed creating Ceph PVC: ${e}")
         }
         case Success(createdPVC) => {
-          log.info(this, s"Did that work??????")
+          log.info(this, s"Successfully created Ceph PVC ${ceph_pvcname}")
+        }
+      }
+      var f3_pvcname = s"${environment("__F3_SEQ_ID")}-f3-pvc"
+      Try {
+        val pvc = new PersistentVolumeClaimBuilder()
+          .withNewMetadata().withName(f3_pvcname).endMetadata()
+          .withNewSpec()
+          .withStorageClassName("f3")
+          .withAccessModes("ReadWriteMany")
+          .withNewResources()
+          .addToRequests("storage", new Quantity("1000Gi"))
+          .endResources()
+          .endSpec()
+          .build()
+        val created = kubeRestClient.persistentVolumeClaims().inNamespace(namespace).create(pvc)
+        created
+      } match {
+        case Failure(e) => {
+          log.info(this, s"Failed creating F3 PVC: ${e}")
+        }
+        case Success(createdPVC) => {
+          log.info(this, s"Successfully created F3 PVC ${f3_pvcname}")
         }
       }
     }
