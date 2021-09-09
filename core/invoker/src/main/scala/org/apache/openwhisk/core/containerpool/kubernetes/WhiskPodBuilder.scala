@@ -140,52 +140,70 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
       */
 
     val pod = if (environment.contains("__F3_SEQ_ID") && environment("__F3_SEQ_ID").length() > 0) {
-      var ceph_pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
-      var f3_pvcname = s"${environment("__F3_SEQ_ID")}-f3-pvc"
+      if (environment("__F3_SEQ_ID").contains("nfs")) {
+        var nfs_pvcname = s"${environment("__F3_SEQ_ID")}-nfs-pvc"
 
-      containerBuilder
-        .addNewVolumeMount()
-        .withName("ceph-fs")
-        .withMountPath("/var/ceph")
-        .endVolumeMount()
+        containerBuilder
+          .addNewVolumeMount()
+          .withName("nfs-fs")
+          .withMountPath("/var/data/")
+          .endVolumeMount()
+          .endContainer()
 
-        .addNewVolumeMount()
-        .withName("f3-fs")
-        .withMountPath("/var/data/")
-        .endVolumeMount()
-        .endContainer()
+          .addNewVolume()
+          .withName("nfs-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(nfs_pvcname, false))
+          .endVolume()
 
-        .addNewVolume()
-        .withName("ceph-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(ceph_pvcname, false))
-        .endVolume()
-        .addNewVolume()
-        .withName("f3-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(f3_pvcname, false))
-        .endVolume()
-      /*
-      var pvcname = s"${funcname}-${scname}-pvc"
+          .endSpec()
+          .build()
+      } else {
+        var ceph_pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
+        var f3_pvcname = s"${environment("__F3_SEQ_ID")}-f3-pvc"
 
-      containerBuilder
-        .addNewVolumeMount()
-        .withName("data")
-        .withMountPath("/var/data/")
-        .endVolumeMount()
+        containerBuilder
+          .addNewVolumeMount()
+          .withName("ceph-fs")
+          .withMountPath("/var/ceph")
+          .endVolumeMount()
 
-        .addNewVolumeMount()
-        .withName("tmpdata")
-        .withMountPath("/var/tmpdata/")
-        .endVolumeMount()
-        .endContainer()
+          .addNewVolumeMount()
+          .withName("f3-fs")
+          .withMountPath("/var/data/")
+          .endVolumeMount()
+          .endContainer()
 
-        .addNewVolume()
-        .withName("data").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(pvcname, false))
-        .endVolume()
-        .addNewVolume()
-        .withName("tmpdata").withEmptyDir(new EmptyDirVolumeSource())
-        .endVolume()
-        */
+          .addNewVolume()
+          .withName("ceph-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(ceph_pvcname, false))
+          .endVolume()
+          .addNewVolume()
+          .withName("f3-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(f3_pvcname, false))
+          .endVolume()
+        /*
+        var pvcname = s"${funcname}-${scname}-pvc"
 
-        .endSpec()
-        .build()
+        containerBuilder
+          .addNewVolumeMount()
+          .withName("data")
+          .withMountPath("/var/data/")
+          .endVolumeMount()
+
+          .addNewVolumeMount()
+          .withName("tmpdata")
+          .withMountPath("/var/tmpdata/")
+          .endVolumeMount()
+          .endContainer()
+
+          .addNewVolume()
+          .withName("data").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(pvcname, false))
+          .endVolume()
+          .addNewVolume()
+          .withName("tmpdata").withEmptyDir(new EmptyDirVolumeSource())
+          .endVolume()
+          */
+
+          .endSpec()
+          .build()
+      }
     } else {
       println(s"Uh did not work")
       containerBuilder
