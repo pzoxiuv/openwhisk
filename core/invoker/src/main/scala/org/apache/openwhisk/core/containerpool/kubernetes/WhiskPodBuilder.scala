@@ -179,7 +179,7 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
 
           .addNewVolumeMount()
           .withName("f3-fs")
-          .withMountPath("/var/data/")
+          .withMountPath("/var/f3/")
           .endVolumeMount()
 
           .addNewVolumeMount()
