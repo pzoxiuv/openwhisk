@@ -31,7 +31,8 @@ import io.fabric8.kubernetes.api.model.{
   Pod,
   PodBuilder,
   Quantity,
-  PersistentVolumeClaimVolumeSource
+  PersistentVolumeClaimVolumeSource,
+  HostPathVolumeSource
   //EmptyDirVolumeSource
 }
 import io.fabric8.kubernetes.client.NamespacedKubernetesClient
@@ -148,10 +149,20 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
           .withName("nfs-fs")
           .withMountPath("/var/data/")
           .endVolumeMount()
+
+          .addNewVolumeMount()
+          .withName("logging-dir")
+          .withMountPath("/var/log/f3")
+          .endVolumeMount()
+
           .endContainer()
 
           .addNewVolume()
           .withName("nfs-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(nfs_pvcname, false))
+          .endVolume()
+
+          .addNewVolume()
+          .withName("logging-dir").withHostPath(new HostPathVolumeSource("/var/log/f3", "Directory"))
           .endVolume()
 
           .endSpec()
@@ -170,6 +181,12 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
           .withName("f3-fs")
           .withMountPath("/var/data/")
           .endVolumeMount()
+
+          .addNewVolumeMount()
+          .withName("logging-dir")
+          .withMountPath("/var/log/f3")
+          .endVolumeMount()
+
           .endContainer()
 
           .addNewVolume()
@@ -177,6 +194,9 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
           .endVolume()
           .addNewVolume()
           .withName("f3-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(f3_pvcname, false))
+          .endVolume()
+          .addNewVolume()
+          .withName("logging-dir").withHostPath(new HostPathVolumeSource("/var/log/f3", "Directory"))
           .endVolume()
         /*
         var pvcname = s"${funcname}-${scname}-pvc"
@@ -207,7 +227,14 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
     } else {
       println(s"Uh did not work")
       containerBuilder
+        .addNewVolumeMount()
+        .withName("logging-dir")
+        .withMountPath("/var/log/f3")
+        .endVolumeMount()
         .endContainer()
+        .addNewVolume()
+        .withName("logging-dir").withHostPath(new HostPathVolumeSource("/var/log/f3", "Directory"))
+        .endVolume()
         .endSpec()
         .build()
     }
