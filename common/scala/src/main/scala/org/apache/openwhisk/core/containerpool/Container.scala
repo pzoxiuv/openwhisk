@@ -85,6 +85,7 @@ trait Container {
   protected var containerHttpTimeout: FiniteDuration = 60.seconds
 
   protected var f3SeqId: String = ""
+  protected var mountPath: String = "/var/data/"
 
   def containerId: ContainerId = id
 

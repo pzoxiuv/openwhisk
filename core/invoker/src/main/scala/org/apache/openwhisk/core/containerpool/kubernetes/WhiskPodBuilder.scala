@@ -143,11 +143,15 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
     val pod = if (environment.contains("__F3_SEQ_ID") && environment("__F3_SEQ_ID").length() > 0) {
       if (environment("__F3_SEQ_ID").contains("nfs")) {
         var nfs_pvcname = s"${environment("__F3_SEQ_ID")}-nfs-pvc"
+        var mount_path = "/var/data/"
+        if (environment.contains("__MOUNT_PATH") && environment("__MOUNT_PATH").length() > 0) {
+          mount_path = s"${environment("__MOUNT_PATH")}"
+        }
 
         containerBuilder
           .addNewVolumeMount()
           .withName("nfs-fs")
-          .withMountPath("/var/data/")
+          .withMountPath(mount_path)
           .endVolumeMount()
 
           .addNewVolumeMount()
