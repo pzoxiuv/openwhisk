@@ -85,7 +85,8 @@ class KubernetesContainerFactory(
       userProvidedImage,
       memory,
       environment = Map("__OW_API_HOST" -> config.wskApiHost, "__F3_SEQ_ID" -> f3SeqId, "__MOUNT_PATH" -> mountPath) ++ containerArgsConfig.extraEnvVarMap,
-      labels = Map("invoker" -> label, "release" -> KubernetesContainerFactoryProvider.release, "f3seqid" -> f3SeqId))
+      //labels = Map("invoker" -> label, "release" -> KubernetesContainerFactoryProvider.release, "f3seqid" -> f3SeqId))
+      labels = Map("invoker" -> label, "release" -> KubernetesContainerFactoryProvider.release))
   }
 }
 

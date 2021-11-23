@@ -32,7 +32,11 @@ import io.fabric8.kubernetes.api.model.{
   PodBuilder,
   Quantity,
   PersistentVolumeClaimVolumeSource,
-  HostPathVolumeSource
+  HostPathVolumeSource,
+  Volume,
+  VolumeMount,
+  VolumeBuilder,
+  VolumeMountBuilder
   //EmptyDirVolumeSource
 }
 import io.fabric8.kubernetes.client.NamespacedKubernetesClient
@@ -40,6 +44,7 @@ import org.apache.openwhisk.common.TransactionId
 import org.apache.openwhisk.core.entity.ByteSize
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.Buffer
 
 class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClientConfig) {
   private val template = config.podTemplate.map(_.value.getBytes(UTF_8))
@@ -140,108 +145,23 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
       .endSecurityContext()
       */
 
-    val pod = if (environment.contains("__F3_SEQ_ID") && environment("__F3_SEQ_ID").length() > 0) {
-      if (environment("__F3_SEQ_ID").contains("nfs")) {
-        var nfs_pvcname = s"${environment("__F3_SEQ_ID")}-nfs-pvc"
-        var mount_path = "/var/data/"
-        if (environment.contains("__MOUNT_PATH") && environment("__MOUNT_PATH").length() > 0) {
-          mount_path = s"${environment("__MOUNT_PATH")}"
-        }
-
-        containerBuilder
-          .addNewVolumeMount()
-          .withName("nfs-fs")
-          .withMountPath(mount_path)
-          .endVolumeMount()
-
-          .addNewVolumeMount()
-          .withName("logging-dir")
-          .withMountPath("/var/log/f3")
-          .endVolumeMount()
-
-          .endContainer()
-
-          .addNewVolume()
-          .withName("nfs-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(nfs_pvcname, false))
-          .endVolume()
-
-          .addNewVolume()
-          .withName("logging-dir").withHostPath(new HostPathVolumeSource("/var/log/f3", "Directory"))
-          .endVolume()
-
-          .endSpec()
-          .build()
-      } else {
-        var ceph_pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
-        var f3_pvcname = s"${environment("__F3_SEQ_ID")}-f3-pvc"
-
-        containerBuilder
-          .addNewVolumeMount()
-          .withName("ceph-fs")
-          .withMountPath("/var/ceph")
-          .endVolumeMount()
-
-          .addNewVolumeMount()
-          .withName("f3-fs")
-          .withMountPath("/var/f3/")
-          .endVolumeMount()
-
-          .addNewVolumeMount()
-          .withName("logging-dir")
-          .withMountPath("/var/log/f3")
-          .endVolumeMount()
-
-          .endContainer()
-
-          .addNewVolume()
-          .withName("ceph-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(ceph_pvcname, false))
-          .endVolume()
-          .addNewVolume()
-          .withName("f3-fs").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(f3_pvcname, false))
-          .endVolume()
-          .addNewVolume()
-          .withName("logging-dir").withHostPath(new HostPathVolumeSource("/var/log/f3", "Directory"))
-          .endVolume()
-        /*
-        var pvcname = s"${funcname}-${scname}-pvc"
-
-        containerBuilder
-          .addNewVolumeMount()
-          .withName("data")
-          .withMountPath("/var/data/")
-          .endVolumeMount()
-
-          .addNewVolumeMount()
-          .withName("tmpdata")
-          .withMountPath("/var/tmpdata/")
-          .endVolumeMount()
-          .endContainer()
-
-          .addNewVolume()
-          .withName("data").withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(pvcname, false))
-          .endVolume()
-          .addNewVolume()
-          .withName("tmpdata").withEmptyDir(new EmptyDirVolumeSource())
-          .endVolume()
-          */
-
-          .endSpec()
-          .build()
+    var volMounts = Buffer[VolumeMount]()
+    var vols = Buffer[Volume]()
+    for ((pvc, mp) <- (environment("__F3_SEQ_ID").split(",") zip environment("__MOUNT_PATH").split(","))) {
+      if (pvc.length() > 0 && mp.length() > 0) {
+        volMounts += new VolumeMountBuilder().withName(pvc).withMountPath(mp).build()
+        vols += new VolumeBuilder().withName(pvc).withPersistentVolumeClaim(new PersistentVolumeClaimVolumeSource(pvc, false)).build()
       }
-    } else {
-      println(s"Uh did not work")
-      containerBuilder
-        .addNewVolumeMount()
-        .withName("logging-dir")
-        .withMountPath("/var/log/f3")
-        .endVolumeMount()
-        .endContainer()
-        .addNewVolume()
-        .withName("logging-dir").withHostPath(new HostPathVolumeSource("/var/log/f3", "Directory"))
-        .endVolume()
-        .endSpec()
-        .build()
     }
+    volMounts += new VolumeMountBuilder().withName("logging-dir").withMountPath("/var/log/f3").build()
+    vols += new VolumeBuilder().withName("logging-dir").withHostPath(new HostPathVolumeSource("/var/log/f3", "Directory")).build()
+
+    val pod = containerBuilder
+      .withVolumeMounts(volMounts:_*)
+      .endContainer()
+      .withVolumes(vols:_*)
+      .endSpec()
+      .build()
 
     val pdb = if (config.pdbEnabled) {
       Some(

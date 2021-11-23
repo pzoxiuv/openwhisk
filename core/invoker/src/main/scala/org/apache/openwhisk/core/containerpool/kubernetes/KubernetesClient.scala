@@ -22,6 +22,7 @@ import java.net.SocketTimeoutException
 import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
 import java.time.{Instant, ZoneId}
+//import java.util.Collections
 
 import akka.actor.ActorSystem
 import akka.event.Logging.ErrorLevel
@@ -141,6 +142,12 @@ class KubernetesClient(
           environment: Map[String, String] = Map.empty,
           labels: Map[String, String] = Map.empty)(implicit transid: TransactionId): Future[KubernetesContainer] = {
 
+    log.info(this, s"LABELS: ${labels}")
+    /*
+    var newLabels = labels.clone()
+    if (newLabels.contains("f3SeqId")) {
+      newLabels -= ("f3SeqId")
+    }*/
     val (pod, pdb) = podBuilder.buildPodSpec(name, image, memory, environment, labels, config)
     if (transid.meta.extraLogging) {
       log.info(this, s"Pod spec being created\n${Serialization.asYaml(pod)}")
@@ -161,6 +168,7 @@ class KubernetesClient(
     log.info(this, s"${Thread.dumpStack()}")
 
     // Provison new PVC:
+    /*
     log.info(this, s"${environment("__F3_SEQ_ID").length()}")
     log.info(this, s"${environment("__F3_SEQ_ID") == "nfs"}")
     if (environment.contains("__F3_SEQ_ID") && environment("__F3_SEQ_ID").length() > 0) {
@@ -191,7 +199,10 @@ class KubernetesClient(
         var ceph_pvcname = s"${environment("__F3_SEQ_ID")}-ceph-pvc"
         Try {
           val pvc = new PersistentVolumeClaimBuilder()
-            .withNewMetadata().withName(ceph_pvcname).endMetadata()
+            .withNewMetadata()
+            .withName(ceph_pvcname)
+            .withLabels(Collections.singletonMap("f3.role", "fs"))
+            .endMetadata()
             .withNewSpec()
             .withStorageClassName("rook-cephfs")
             .withAccessModes("ReadWriteMany")
@@ -213,7 +224,11 @@ class KubernetesClient(
         var f3_pvcname = s"${environment("__F3_SEQ_ID")}-f3-pvc"
         Try {
           val pvc = new PersistentVolumeClaimBuilder()
-            .withNewMetadata().withName(f3_pvcname).endMetadata()
+            .withNewMetadata()
+            .withName(f3_pvcname)
+            .withLabels(Collections.singletonMap("f3.role", "f3"))
+            .withLabels(Collections.singletonMap("f3.target-pvc", ceph_pvcname))
+            .endMetadata()
             .withNewSpec()
             .withStorageClassName("f3")
             .withAccessModes("ReadWriteMany")
@@ -233,7 +248,7 @@ class KubernetesClient(
           }
         }
       }
-    }
+    }*/
 
     //create the pod; catch any failure to end the transaction timer
     Try {
