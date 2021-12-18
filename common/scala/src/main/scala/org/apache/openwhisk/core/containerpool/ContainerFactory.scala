@@ -106,8 +106,9 @@ trait ContainerFactory {
     cpuShares: Int,
     f3SeqId: String,
     mountPath: String,
+    dockerImage: String,
     action: Option[ExecutableWhiskAction])(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
-    createContainer(tid, name, actionImage, userProvidedImage, memory, cpuShares, f3SeqId, mountPath)
+    createContainer(tid, name, actionImage, userProvidedImage, memory, cpuShares, f3SeqId, mountPath, dockerImage)
   }
 
   def createContainer(tid: TransactionId,
@@ -117,7 +118,8 @@ trait ContainerFactory {
                       memory: ByteSize,
                       cpuShares: Int,
                       f3SeqId: String = "",
-                      mountPath: String = "/var/data/")(implicit config: WhiskConfig, logging: Logging): Future[Container]
+                      mountPath: String = "/var/data/",
+                      dockerImage: String = "")(implicit config: WhiskConfig, logging: Logging): Future[Container]
 
   /** perform any initialization */
   def init(): Unit

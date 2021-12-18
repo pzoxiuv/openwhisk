@@ -132,7 +132,8 @@ class MesosContainerFactory(config: WhiskConfig,
                                memory: ByteSize,
                                cpuShares: Int,
                                f3SeqId: String = "",
-                               mountPath: String = "/var/data/")(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
+                               mountPath: String = "/var/data/",
+                               dockerImage: String = "")(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
     implicit val transid = tid
     val image = actionImage.resolveImageName(Some(
       ContainerFactory.resolveRegistryConfig(userProvidedImage, runtimesRegistryConfig, userImagesRegistryConfig).url))

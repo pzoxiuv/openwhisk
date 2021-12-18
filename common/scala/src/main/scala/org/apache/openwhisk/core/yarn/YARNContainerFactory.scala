@@ -127,7 +127,8 @@ class YARNContainerFactory(actorSystem: ActorSystem,
     unusedmemory: ByteSize,
     unusedcpuShares: Int,
     unusedf3SeqId: String = "",
-    unusedmountPath: String = "/var/data/")(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
+    unusedmountPath: String = "/var/data/",
+    unuseddockerImage: String = "")(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
     implicit val timeout: Timeout = Timeout(containerStartTimeoutMS.milliseconds)
 
     //First send the create command to YARN, then with a different actor, wait for the container to be ready

@@ -78,7 +78,7 @@ case object Removing extends ContainerState
 
 // Data
 /** Base data type */
-sealed abstract class ContainerData(val lastUsed: Instant, val memoryLimit: ByteSize, val f3SeqId: String, val mountPath: String, val activeActivationCount: Int) {
+sealed abstract class ContainerData(val lastUsed: Instant, val memoryLimit: ByteSize, val f3SeqId: String, val mountPath: String, val dockerImage: String, val activeActivationCount: Int) {
 
   /** When ContainerProxy in this state is scheduled, it may result in a new state (ContainerData)*/
   def nextRun(r: Run): ContainerData
@@ -102,6 +102,10 @@ sealed abstract class ContainerData(val lastUsed: Instant, val memoryLimit: Byte
   /** Inidicates whether this container can service additional activations */
   def mountSamePath(s: String): Boolean = 
     s == mountPath || mountPath == "/var/data/"
+
+  /** Inidicates whether this container can service additional activations */
+  def dockerSameImage(s: String): Boolean = 
+    s == dockerImage || dockerImage == ""
 }
 
 /** abstract type to indicate an unstarted container */
@@ -109,8 +113,9 @@ sealed abstract class ContainerNotStarted(override val lastUsed: Instant,
                                           override val memoryLimit: ByteSize,
                                           override val f3SeqId: String,
                                           override val mountPath: String,
+                                          override val dockerImage: String,
                                           override val activeActivationCount: Int)
-    extends ContainerData(lastUsed, memoryLimit, f3SeqId, mountPath, activeActivationCount) {
+    extends ContainerData(lastUsed, memoryLimit, f3SeqId, mountPath, dockerImage, activeActivationCount) {
   override def getContainer = None
   override val initingState = "cold"
 
@@ -126,8 +131,9 @@ sealed abstract class ContainerStarted(val container: Container,
                                        override val memoryLimit: ByteSize,
                                        override val f3SeqId: String,
                                        override val mountPath: String,
+                                       override val dockerImage: String,
                                        override val activeActivationCount: Int)
-    extends ContainerData(lastUsed, memoryLimit, f3SeqId, mountPath, activeActivationCount) {
+    extends ContainerData(lastUsed, memoryLimit, f3SeqId, mountPath, dockerImage, activeActivationCount) {
   override def getContainer = Some(container)
 }
 
@@ -147,17 +153,18 @@ sealed abstract trait ContainerNotInUse {
 /** type representing a cold (not running) container */
 case class NoData(override val f3SeqId: String = "",
                   override val mountPath: String = "/var/data/",
+                  override val dockerImage: String = "",
                   override val activeActivationCount: Int = 0)
-    extends ContainerNotStarted(Instant.EPOCH, 0.B, f3SeqId, mountPath, activeActivationCount)
+    extends ContainerNotStarted(Instant.EPOCH, 0.B, f3SeqId, mountPath, dockerImage, activeActivationCount)
     with ContainerNotInUse {
-  override def nextRun(r: Run) = WarmingColdData(r.msg.user.namespace.name, r.action, Instant.now, f3SeqId, mountPath, 1)
+  override def nextRun(r: Run) = WarmingColdData(r.msg.user.namespace.name, r.action, Instant.now, f3SeqId, mountPath, dockerImage, 1)
 }
 
 /** type representing a cold (not running) container with specific memory allocation */
-case class MemoryData(override val memoryLimit: ByteSize, override val f3SeqId: String, override val mountPath: String, override val activeActivationCount: Int = 0)
-    extends ContainerNotStarted(Instant.EPOCH, memoryLimit, f3SeqId, mountPath, activeActivationCount)
+case class MemoryData(override val memoryLimit: ByteSize, override val f3SeqId: String, override val mountPath: String, override val dockerImage: String, override val activeActivationCount: Int = 0)
+    extends ContainerNotStarted(Instant.EPOCH, memoryLimit, f3SeqId, mountPath, dockerImage, activeActivationCount)
     with ContainerNotInUse {
-  override def nextRun(r: Run) = WarmingColdData(r.msg.user.namespace.name, r.action, Instant.now, f3SeqId, mountPath, 1)
+  override def nextRun(r: Run) = WarmingColdData(r.msg.user.namespace.name, r.action, Instant.now, f3SeqId, mountPath, dockerImage, 1)
 }
 
 /** type representing a prewarmed (running, but unused) container (with a specific memory allocation) */
@@ -166,13 +173,14 @@ case class PreWarmedData(override val container: Container,
                          override val memoryLimit: ByteSize,
                          override val f3SeqId: String,
                          override val mountPath: String,
+                         override val dockerImage: String,
                          override val activeActivationCount: Int = 0,
                          expires: Option[Deadline] = None)
-    extends ContainerStarted(container, Instant.EPOCH, memoryLimit, f3SeqId, mountPath, activeActivationCount)
+    extends ContainerStarted(container, Instant.EPOCH, memoryLimit, f3SeqId, mountPath, dockerImage, activeActivationCount)
     with ContainerNotInUse {
   override val initingState = "prewarmed"
   override def nextRun(r: Run) =
-    WarmingData(container, r.msg.user.namespace.name, r.action, Instant.now, f3SeqId, mountPath, 1)
+    WarmingData(container, r.msg.user.namespace.name, r.action, Instant.now, f3SeqId, mountPath, dockerImage, 1)
   def isExpired(): Boolean = expires.exists(_.isOverdue())
 }
 
@@ -183,8 +191,9 @@ case class WarmingData(override val container: Container,
                        override val lastUsed: Instant,
                        override val f3SeqId: String,
                        override val mountPath: String,
+                       override val dockerImage: String,
                        override val activeActivationCount: Int = 0)
-    extends ContainerStarted(container, lastUsed, action.limits.memory.megabytes.MB, f3SeqId, mountPath, activeActivationCount)
+    extends ContainerStarted(container, lastUsed, action.limits.memory.megabytes.MB, f3SeqId, mountPath, dockerImage, activeActivationCount)
     with ContainerInUse {
   override val initingState = "warming"
   override def nextRun(r: Run) = copy(lastUsed = Instant.now, activeActivationCount = activeActivationCount + 1)
@@ -196,8 +205,9 @@ case class WarmingColdData(invocationNamespace: EntityName,
                            override val lastUsed: Instant,
                            override val f3SeqId: String,
                            override val mountPath: String,
+                           override val dockerImage: String,
                            override val activeActivationCount: Int = 0)
-    extends ContainerNotStarted(lastUsed, action.limits.memory.megabytes.MB, f3SeqId, mountPath, activeActivationCount)
+    extends ContainerNotStarted(lastUsed, action.limits.memory.megabytes.MB, f3SeqId, mountPath, dockerImage, activeActivationCount)
     with ContainerInUse {
   override val initingState = "warmingCold"
   override def nextRun(r: Run) = copy(lastUsed = Instant.now, activeActivationCount = activeActivationCount + 1)
@@ -209,10 +219,11 @@ case class WarmedData(override val container: Container,
                       action: ExecutableWhiskAction,
                       override val f3SeqId: String,
                       override val mountPath: String,
+                      override val dockerImage: String,
                       override val lastUsed: Instant,
                       override val activeActivationCount: Int = 0,
                       resumeRun: Option[Run] = None)
-    extends ContainerStarted(container, lastUsed, action.limits.memory.megabytes.MB, f3SeqId, mountPath, activeActivationCount)
+    extends ContainerStarted(container, lastUsed, action.limits.memory.megabytes.MB, f3SeqId, mountPath, dockerImage, activeActivationCount)
     with ContainerInUse {
   override val initingState = "warmed"
   override def nextRun(r: Run) = copy(lastUsed = Instant.now, activeActivationCount = activeActivationCount + 1)
@@ -280,6 +291,7 @@ class ContainerProxy(factory: (TransactionId,
                                Int,
                                String,
                                String,
+                               String,
                                Option[ExecutableWhiskAction]) => Future[Container],
                      sendActiveAck: ActiveAck,
                      storeActivation: (TransactionId, WhiskActivation, Boolean, UserContext) => Future[Any],
@@ -321,9 +333,10 @@ class ContainerProxy(factory: (TransactionId,
         poolConfig.cpuShare(job.memoryLimit),
         "",
         "/var/data/",
+        "",
         None)
         .map(container =>
-          PreWarmCompleted(PreWarmedData(container, job.exec.kind, job.memoryLimit, "", "/var/data/", expires = job.ttl.map(_.fromNow))))
+          PreWarmCompleted(PreWarmedData(container, job.exec.kind, job.memoryLimit, "", "/var/data/", "", expires = job.ttl.map(_.fromNow))))
         .pipeTo(self)
 
       goto(Starting)
@@ -344,6 +357,10 @@ class ContainerProxy(factory: (TransactionId,
         case Seq(spray.json.JsString(path)) => path
         case _ => "/var/data/"
       }
+      val dockerImage = parameters.getFields("dockerImage") match {
+        case Seq(spray.json.JsString(image)) => image
+        case _ => ""
+      }
 
       // create a new container
       val container = factory(
@@ -355,6 +372,7 @@ class ContainerProxy(factory: (TransactionId,
         poolConfig.cpuShare(job.action.limits.memory.megabytes.MB),
         f3SeqId,
         mountPath,
+        dockerImage,
         Some(job.action))
 
       // container factory will either yield a new container ready to execute the action, or
@@ -366,7 +384,7 @@ class ContainerProxy(factory: (TransactionId,
             // the container is ready to accept an activation; register it as PreWarmed; this
             // normalizes the life cycle for containers and their cleanup when activations fail
             self ! PreWarmCompleted(
-              PreWarmedData(container, job.action.exec.kind, job.action.limits.memory.megabytes.MB, f3SeqId, mountPath, 1, expires = None))
+              PreWarmedData(container, job.action.exec.kind, job.action.limits.memory.megabytes.MB, f3SeqId, mountPath, dockerImage, 1, expires = None))
 
           case Failure(t) =>
             // the container did not come up cleanly, so disambiguate the failure mode and then cleanup
@@ -422,7 +440,7 @@ class ContainerProxy(factory: (TransactionId,
       initializeAndRun(data.container, job)
         .map(_ => RunCompleted)
         .pipeTo(self)
-      goto(Running) using PreWarmedData(data.container, data.kind, data.memoryLimit, data.f3SeqId, data.mountPath, 1, data.expires)
+      goto(Running) using PreWarmedData(data.container, data.kind, data.memoryLimit, data.f3SeqId, data.mountPath, data.dockerImage, 1, data.expires)
 
     case Event(Remove, data: PreWarmedData) => destroyContainer(data, false)
 
@@ -881,7 +899,11 @@ class ContainerProxy(factory: (TransactionId,
             case Seq(spray.json.JsString(path)) => path
             case _ => "/var/data/"
           }
-          self ! InitCompleted(WarmedData(container, job.msg.user.namespace.name, job.action, f3SeqId, mountPath, Instant.now, 1))
+          val dockerImage = parameters.getFields("dockerImage") match {
+            case Seq(spray.json.JsString(image)) => image
+            case _ => ""
+          }
+          self ! InitCompleted(WarmedData(container, job.msg.user.namespace.name, job.action, f3SeqId, mountPath, dockerImage, Instant.now, 1))
         }
 
         val env = authEnvironment ++ environment ++ Map(
@@ -1039,6 +1061,7 @@ object ContainerProxy {
                       Boolean,
                       ByteSize,
                       Int,
+                      String,
                       String,
                       String,
                       Option[ExecutableWhiskAction]) => Future[Container],

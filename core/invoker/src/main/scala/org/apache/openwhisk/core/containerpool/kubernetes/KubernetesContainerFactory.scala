@@ -74,7 +74,8 @@ class KubernetesContainerFactory(
                                memory: ByteSize,
                                cpuShares: Int,
                                f3SeqId: String,
-                               mountPath: String)(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
+                               mountPath: String,
+                               dockerImage: String)(implicit config: WhiskConfig, logging: Logging): Future[Container] = {
     val image = actionImage.resolveImageName(Some(
       ContainerFactory.resolveRegistryConfig(userProvidedImage, runtimesRegistryConfig, userImagesRegistryConfig).url))
 
@@ -84,7 +85,7 @@ class KubernetesContainerFactory(
       image,
       userProvidedImage,
       memory,
-      environment = Map("__OW_API_HOST" -> config.wskApiHost, "__F3_SEQ_ID" -> f3SeqId, "__MOUNT_PATH" -> mountPath) ++ containerArgsConfig.extraEnvVarMap,
+      environment = Map("__OW_API_HOST" -> config.wskApiHost, "__F3_SEQ_ID" -> f3SeqId, "__MOUNT_PATH" -> mountPath, "__DOCKER_IMAGE" -> dockerImage) ++ containerArgsConfig.extraEnvVarMap,
       //labels = Map("invoker" -> label, "release" -> KubernetesContainerFactoryProvider.release, "f3seqid" -> f3SeqId))
       labels = Map("invoker" -> label, "release" -> KubernetesContainerFactoryProvider.release))
   }
