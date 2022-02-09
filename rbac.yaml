@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pod-watcher-ow
+  namespace: openwhisk
+secrets:
+- name: pod-watcher-token-ow
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: openwhisk
+  name: pod-watcher-ow
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods", "persistentvolumeclaims"]
+  verbs: ["get", "watch", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: binding-ow
+subjects:
+  - kind: ServiceAccount
+    name: pod-watcher-ow
+    namespace: openwhisk
+roleRef:
+  kind: ClusterRole
+  name: pod-watcher-ow
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pod-watcher-token-ow
+  namespace: openwhisk
+  annotations:
+    kubernetes.io/service-account.name: pod-watcher-ow
+type: kubernetes.io/service-account-token
