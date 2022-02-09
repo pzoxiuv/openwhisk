@@ -111,9 +111,10 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
     } else specBuilder.addNewContainer()
 
     //if cpu scaling is enabled, calculate cpu from memory, 100m per 256Mi, min is 100m(.1cpu), max is 10000 (10cpu)
-    val cpu = config.cpuScaling
-      .map(cpuConfig => Map("cpu" -> new Quantity(calculateCpu(cpuConfig, memory) + "m")))
-      .getOrElse(Map.empty)
+    //val cpu = config.cpuScaling
+    //  .map(cpuConfig => Map("cpu" -> new Quantity(calculateCpu(cpuConfig, memory) + "m")))
+    //  .getOrElse(Map.empty)
+    val cpu = Map("cpu" -> new Quantity("1000m"))
 
     val diskLimit = config.ephemeralStorage
       .map(diskConfig => Map("ephemeral-storage" -> new Quantity(diskConfig.limit.toMB + "Mi")))
