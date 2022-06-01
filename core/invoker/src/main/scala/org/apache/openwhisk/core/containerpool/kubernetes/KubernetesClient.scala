@@ -353,7 +353,8 @@ class KubernetesClient(
         kubeRestClient
           .inNamespace(kubeRestClient.getNamespace)
           .pods()
-          .withName(podName+"fake")
+          .withName(podName)
+          //.withName(podName+"fake")
           .delete()
         if (config.pdbEnabled) {
           kubeRestClient.policy.podDisruptionBudget

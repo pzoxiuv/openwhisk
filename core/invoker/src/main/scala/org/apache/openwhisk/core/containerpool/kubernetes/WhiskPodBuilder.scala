@@ -111,10 +111,15 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
     } else specBuilder.addNewContainer()
 
     //if cpu scaling is enabled, calculate cpu from memory, 100m per 256Mi, min is 100m(.1cpu), max is 10000 (10cpu)
+    // always enable for now:
     //val cpu = config.cpuScaling
     //  .map(cpuConfig => Map("cpu" -> new Quantity(calculateCpu(cpuConfig, memory) + "m")))
     //  .getOrElse(Map.empty)
-    val cpu = Map("cpu" -> new Quantity("1000m"))
+    val divisor = 256
+    val cpuPerMemorySegment = 100
+    val cpuMin = 100
+    val cpuMax = 10000
+    val cpu = Map("cpu" -> new Quantity(math.min(math.max((memory.toMB / divisor) * cpuPerMemorySegment, cpuMin), cpuMax).toInt + "m"))
 
     val diskLimit = config.ephemeralStorage
       .map(diskConfig => Map("ephemeral-storage" -> new Quantity(diskConfig.limit.toMB + "Mi")))
@@ -128,11 +133,11 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
     //In container its assumed that env, port, resource limits are set explicitly
     //Here if any value exist in template then that would be overridden
     containerBuilder
-      .withNewResources()
+      //.withNewResources()
       //explicitly set requests and limits to same values
-      .withLimits((Map("memory" -> new Quantity(memory.toMB + "Mi")) ++ cpu ++ diskLimit).asJava)
-      .withRequests((Map("memory" -> new Quantity(memory.toMB + "Mi")) ++ cpu ++ diskLimit).asJava)
-      .endResources()
+      //.withLimits((Map("memory" -> new Quantity(memory.toMB + "Mi")) ++ cpu ++ diskLimit).asJava)
+      //.withRequests((Map("memory" -> new Quantity(memory.toMB + "Mi")) ++ cpu ++ diskLimit).asJava)
+      //.endResources()
       .withName(actionContainerName)
       .withImage(docker_image)
       .withCommand("/bin/sh", "-c")
