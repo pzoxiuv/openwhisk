@@ -106,6 +106,10 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
         .endAffinity()
     }
 
+    if (environment.contains("__RUNTIME_CLASS") && environment("__RUNTIME_CLASS").length() > 0) {
+      specBuilder.withRuntimeClassName(s"${environment("__RUNTIME_CLASS")}")
+    }
+
     val containerBuilder = if (specBuilder.hasMatchingContainer(actionContainerPredicate)) {
       specBuilder.editMatchingContainer(actionContainerPredicate)
     } else specBuilder.addNewContainer()

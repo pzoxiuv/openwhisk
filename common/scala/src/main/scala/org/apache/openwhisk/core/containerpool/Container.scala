@@ -87,6 +87,7 @@ trait Container {
   protected var f3SeqId: String = ""
   protected var mountPath: String = "/var/data/"
   protected var dockerImage: String = ""
+  protected var runtimeClass: String = "runc"
 
   def containerId: ContainerId = id
 
