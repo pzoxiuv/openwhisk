@@ -1,3 +1,4 @@
+import socket
 import shlex
 import subprocess
 import json
@@ -15,12 +16,19 @@ def get_uid():
         print(e)
         return 'unknown'
 
+def send_action_pod(j):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('action-file-server-service.default', 8787))
+    s.sendall(bytes(json.dumps(j)+"\n", "ascii"))
+    s.close()
+
 def log_action_pod(params):
     o = {'params': params, 'pod-uid': get_uid(), 'action': os.environ.get('__OW_ACTION_NAME', 'unknown')}
     print(f'Logging action-pod info {json.dumps(o)}')
-    with open('/var/log/f3/action-pods', 'a') as f:
-        json.dump(o, f)
-        f.write('\n')
+    send_action_pod(o)
+    #with open('/var/log/f3/action-pods', 'a') as f:
+    #    json.dump(o, f)
+    #    f.write('\n')
 
 def main(dict):
     log_action_pod(dict)
