@@ -111,7 +111,7 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
         .endAffinity()
     }
 
-    if (environment.contains("__RUNTIME_CLASS") && environment("__RUNTIME_CLASS").length() > 0) {
+    if (environment.contains("__RUNTIME_CLASS") && environment("__RUNTIME_CLASS").length() > 0 && environment("__RUNTIME_CLASS") != "runc") {
       specBuilder.withRuntimeClassName(s"${environment("__RUNTIME_CLASS")}")
     }
 
