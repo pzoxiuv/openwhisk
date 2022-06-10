@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: f3-ceph-pvc
+  namespace: openwhisk
+  labels:
+    f3.role: fs
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 1000Gi
+  storageClassName: rook-cephfs-replicated
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: f3-pvc
+  namespace: openwhisk
+  labels:
+    f3.role: f3
+    f3.target-pvc: f3-ceph-pvc
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 1000Gi
+  storageClassName: f3
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: f3-pod
+  namespace: openwhisk
+spec:
+  restartPolicy: Never
+  containers:
+  - image: ubuntu:21.04
+    name: test
+    command: ["tail", "-f", "/dev/null"]
+    volumeMounts:
+      - mountPath: /var/data
+        name: test
+  volumes:
+  - name: test
+    persistentVolumeClaim:
+      claimName: f3-pvc
