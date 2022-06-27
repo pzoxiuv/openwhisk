@@ -112,6 +112,7 @@ object KubernetesContainer {
 class KubernetesContainer(protected[core] val id: ContainerId,
                           protected[core] val addr: ContainerAddress,
                           protected[core] val workerIP: String,
+                          protected[core] val nodeName: String,
                           protected[core] val nativeContainerId: String,
                           portForward: Option[PortForward] = None)(implicit kubernetes: KubernetesApi,
                                                                    override protected val as: ActorSystem,
@@ -135,6 +136,10 @@ class KubernetesContainer(protected[core] val id: ContainerId,
     super.destroy()
     portForward.foreach(_.close())
     kubernetes.rm(this)
+  }
+
+  override def getNodeName(): String = {
+    nodeName
   }
 
   override def initialize(initializer: JsObject,

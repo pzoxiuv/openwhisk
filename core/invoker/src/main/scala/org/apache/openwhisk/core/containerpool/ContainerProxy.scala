@@ -824,6 +824,10 @@ class ContainerProxy(factory: (TransactionId,
     }
   }
 
+  def getNodeName(c: Container): String = {
+    c.getNodeName()
+  }
+
   private def enableHealthPing(c: Container) = {
     val hpa = healthPingActor.getOrElse {
       logging.info(this, s"creating health ping actor for ${c.addr.asString()}")

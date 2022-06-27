@@ -374,6 +374,10 @@ class KubernetesClient(
       }
   }
 
+  def getNodeName(container: KubernetesContainer): String = {
+    container.nodeName
+  }
+
   // suspend is a no-op with the basic KubernetesClient
   def suspend(container: KubernetesContainer)(implicit transid: TransactionId): Future[Unit] = Future.successful({})
 
@@ -402,11 +406,12 @@ class KubernetesClient(
       .map(fwd => ContainerAddress("localhost", fwd.getLocalPort))
       .getOrElse(ContainerAddress(pod.getStatus.getPodIP))
     val workerIP = pod.getStatus.getHostIP
+    val nodeName = pod.getSpec.getNodeName
     // Extract the native (docker or containerd) containerId for the container
     // By convention, kubernetes adds a docker:// prefix when using docker as the low-level container engine
     val nativeContainerId = pod.getStatus.getContainerStatuses.get(0).getContainerID.stripPrefix("docker://")
     implicit val kubernetes = this
-    new KubernetesContainer(id, addr, workerIP, nativeContainerId, portFwd)
+    new KubernetesContainer(id, addr, workerIP, nodeName, nativeContainerId, portFwd)
   }
 
   // check for ready status every 1 second until timeout (minus the start time, which is the time for the pod create call) has past

@@ -250,6 +250,10 @@ trait Container {
   /** This is so that we can easily log the container id during ContainerPool.logContainerStart().
    *  Null check is here since some tests use stub[Container] so id is null during those tests. */
   override def toString() = if (id == null) "no-container-id" else id.toString
+
+  def getNodeName(): String = {
+      "none"
+  }
 }
 
 /** Indicates a general error with the container */

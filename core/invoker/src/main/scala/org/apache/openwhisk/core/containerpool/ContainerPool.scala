@@ -29,6 +29,8 @@ import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.util.{Random, Try}
 
+import scalaj.http.{Http, HttpOptions}
+
 case class ColdStartKey(kind: String, memory: ByteSize)
 
 case object EmitMetrics
@@ -107,6 +109,34 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
       akka.event.Logging.InfoLevel)
   }
 
+  private def getPossibleFiles(command: String, mountPath: String): Array[String] = {
+    command.split(" ").filter(_.startsWith(mountPath))
+  }
+
+  private def getPreferredNodes(files: Array[String]): Array[String] = {
+    // Query F3 to get list of preferred nodes
+    // If none of the nodes have the data, return empty list
+    // TODO:
+    //   1. If all nodes have the same data, return nothing (no preference)
+    //   2. If a node has some data but under some threshold (e.g., image size, but for now
+    //      just hardcode to e.g. 500 MB), treat it as not having any of the data
+
+    // This is an ordered list of the preferred nodes:
+    Array("node-3", "node-4")
+    val result = Http("http://file-logger-service.default.svc.cluster.local:8788/preferredNodes").postForm(Seq("filenames" -> files.mkString(",")))
+      .header("Content-Type", "application/json")
+      .header("Charset", "UTF-8")
+      .option(HttpOptions.readTimeout(10000)).asString
+    logging.info(this, s"PREFERRED NODES ${result}")
+    logging.info(this, s"response code: ${result.code}")
+
+    if (result.code == 200) {
+        result.body.stripLineEnd.split(",")
+    } else {
+        return Array[String]()
+    }
+  }
+
   def receive: Receive = {
     // A job to run on a container
     //
@@ -152,9 +182,45 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
               case Seq(spray.json.JsString(path)) => path
               case _ => "runc"
             }
-            logging.info(this, s"GOT runtimeClass ${runtimeClass}")
+
+            val command = parameters.getFields("command") match {
+              case Seq(spray.json.JsString(path)) => path
+              case _ => ""
+            }
+            logging.info(this, s"GOT command ${command}")
+
+            val possibleFiles = getPossibleFiles(command, mountPath)
+            logging.info(this, s"possible files:\n")
+            possibleFiles.foreach(f => logging.info(this, s"possible file: ${f}"))
+
+            val preferredNodes = getPreferredNodes(possibleFiles)
+            logging.info(this, s"preferred nodes:\n")
+            preferredNodes.foreach(f => logging.info(this, s"preferred node: ${f}"))
+
+// So here we get a container, or create one?
+// We want to get the available containers, and rank them based on how much of the required data
+// is available on their nodes.
+// If we need to create a new one, try to create it on the node that has the data
+// SO
+// When we get here, we need to
+// 1. Examine the command.  Are there any suspected paths?
+// 2. If so, query f3 to see what nodes those are on and how big they are
+// 3. Then look at list of available containers.  Rank based on how much data is already on their nodes
+// 	(so for each file in command, if file is on a container's node, add that amount.
+//	Divide by total size of all files in command to normalize.  Result is the % of data needed
+//	by command available on the node that the container is on)
+//	Maybe also include size of container image?
+            logging.info(this, s"free pool? ${freePool}")
+            for ((k, v) <- freePool) {
+              val c = v.getContainer match {
+                case Some(container) => container
+                case _ => ""
+              }
+	      logging.info(this, s"NODENAME: ${c.asInstanceOf[Container].getNodeName()}")
+            }
+
             ContainerPool
-              .schedule(r.action, r.msg.user.namespace.name, freePool, f3SeqId, mountPath, dockerImage, runtimeClass)
+              .scheduleDataAware(r.action, r.msg.user.namespace.name, freePool, f3SeqId, mountPath, dockerImage, runtimeClass, preferredNodes)
               .map(container => (container, container._2.initingState)) //warmed, warming, and warmingCold always know their state
               .orElse(
                 // There was no warm/warming/warmingCold container. Try to take a prewarm container or a cold container.
@@ -498,6 +564,54 @@ object ContainerPool {
    */
   protected[containerpool] def memoryConsumptionOf[A](pool: Map[A, ContainerData]): Long = {
     pool.map(_._2.memoryLimit.toMB).sum
+  }
+
+  protected[containerpool] def scheduleDataAware[A](action: ExecutableWhiskAction,
+                                           invocationNamespace: EntityName,
+                                           idles: Map[A, ContainerData],
+                                           f3SeqId: String,
+                                           mountPath: String,
+                                           dockerImage: String,
+                                           runtimeClass: String,
+                                           preferredNodes: Array[String]): Option[(A, ContainerData)] = {
+
+
+    if (preferredNodes.size == 0) {
+      schedule(action, invocationNamespace, idles, f3SeqId, mountPath, dockerImage, runtimeClass)
+    }
+    val candidateContainers = idles
+      .filter {
+        case (_, c @ WarmedData(_, `invocationNamespace`, `action`, `f3SeqId`, `mountPath`, `dockerImage`, `runtimeClass`, _, _, _)) if c.hasCapacity() && preferredNodes.contains(c.getContainer match {case Some(cc) => cc.getNodeName(); case _ => "shouldnothappen"}) => true
+        case _                                                                                   => false
+      }
+
+    println(s"candidateContainers: ${candidateContainers}\n")
+
+    if (candidateContainers.size == 0) {
+      schedule(action, invocationNamespace, idles, f3SeqId, mountPath, dockerImage, runtimeClass)
+    }
+
+    println(s"Found at least one candidate container...")
+
+    // If we're here, we know one of these containers is available and on a preferred node
+    // Go through by order (should be sorted by order of preference)
+    for (node <- preferredNodes) {
+    //preferredNodes.foreach(node => {
+      val targetContainer = candidateContainers
+        .find {
+          case (_, c @ WarmedData(_, _, _, _, _, _, _, _, _, _)) if (c.getContainer match{ case Some(c) => c.getNodeName() == node; case _ => false}) => true
+          case _ => false
+        }
+      if (targetContainer != None) {
+        println(s"Found target container ${targetContainer} on node ${node}")
+        return targetContainer
+      }
+    }
+    //})
+
+   // Shouldn't ever get here
+   None
+
   }
 
   /**
