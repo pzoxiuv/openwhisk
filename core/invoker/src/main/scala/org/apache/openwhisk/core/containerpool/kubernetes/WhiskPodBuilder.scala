@@ -70,12 +70,7 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
             .withValueFrom(new EnvVarSourceBuilder().withNewFieldRef().withFieldPath(value).endFieldRef().build())
             .build()
       }).toSeq)
-        .getOrElse(Seq.empty) ++ environment.map {
-          case (key, value) => new EnvVarBuilder()
-            .withName("POD_UID")
-            .withValueFrom(new EnvVarSourceBuilder().withNewFieldRef().withFieldPath("metadata.uid").endFieldRef().build())
-            .build()
-        }.toSeq
+       .getOrElse(Seq.empty)
 
     val baseBuilder = template match {
       case Some(bytes) =>

@@ -16,6 +16,18 @@ def get_uid():
         print(e)
         return 'unknown'
 
+def get_node_name():
+    try:
+        with open('/proc/1/environ') as f:
+            e = f.read()
+        uid = [x for x in e.split('\x00') if 'NODE_NAME' in x]
+        uid = uid[0].split('=')[1]
+        return uid
+    except Exception as e:
+        print(e)
+        return 'unknown'
+
+
 def send_action_pod(j):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(('action-file-server-service.default', 8787))
@@ -23,7 +35,7 @@ def send_action_pod(j):
     s.close()
 
 def log_action_pod(params):
-    o = {'params': params, 'pod-uid': get_uid(), 'action': os.environ.get('__OW_ACTION_NAME', 'unknown')}
+    o = {'params': params, 'pod-uid': get_uid(), 'action': os.environ.get('__OW_ACTION_NAME', 'unknown'), 'node-name': get_node_name()}
     print(f'Logging action-pod info {json.dumps(o)}')
     send_action_pod(o)
     #with open('/var/log/f3/action-pods', 'a') as f:

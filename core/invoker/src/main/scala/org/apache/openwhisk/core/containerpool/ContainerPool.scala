@@ -109,8 +109,11 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
       akka.event.Logging.InfoLevel)
   }
 
-  private def getPossibleFiles(command: String, mountPath: String): Array[String] = {
-    command.split(" ").filter(_.startsWith(mountPath))
+  private def getPossibleFiles(command: String, mountPaths: String): Array[String] = {
+    //command.split(" ").filter(_.startsWith(mountPath))
+    var pf = command.split(" ").filter(c => mountPaths.split(",").exists(mp => c.startsWith(mp)))
+    mountPaths.split(",").foreach(mp => pf = pf.map(c => c.replace(mp, "/")))
+    pf
   }
 
   private def getPreferredNodes(files: Array[String]): Array[String] = {
