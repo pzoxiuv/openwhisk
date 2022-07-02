@@ -185,6 +185,7 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
               case Seq(spray.json.JsString(path)) => path
               case _ => "runc"
             }
+            logging.info(this, s"GOT runtimeClass ${runtimeClass}")
 
             val command = parameters.getFields("command") match {
               case Seq(spray.json.JsString(path)) => path
@@ -224,6 +225,7 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
 
             ContainerPool
               .scheduleDataAware(r.action, r.msg.user.namespace.name, freePool, f3SeqId, mountPath, dockerImage, runtimeClass, preferredNodes)
+              //.schedule(r.action, r.msg.user.namespace.name, freePool, f3SeqId, mountPath, dockerImage, runtimeClass)
               .map(container => (container, container._2.initingState)) //warmed, warming, and warmingCold always know their state
               .orElse(
                 // There was no warm/warming/warmingCold container. Try to take a prewarm container or a cold container.
@@ -248,9 +250,11 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
                   // removing the containers, we are not interested anymore in the containers that have been removed.
                   .headOption
                   .map(_ =>
+                    // We're not using prewarm containers, so node affinity not implemented for them
                     takePrewarmContainer(r.action, f3SeqId, mountPath, dockerImage, runtimeClass)
                       .map(container => (container, "recreatedPrewarm"))
                       .getOrElse {
+                        // I think this is the case where we do a cold start right?
                         val container = (createContainer(r.action.limits.memory.megabytes.MB, f3SeqId, mountPath, dockerImage, runtimeClass), "recreated")
                         incrementColdStartCount(r.action.exec.kind, r.action.limits.memory.megabytes.MB)
                         container
@@ -591,7 +595,7 @@ object ContainerPool {
     println(s"candidateContainers: ${candidateContainers}\n")
 
     if (candidateContainers.size == 0) {
-      schedule(action, invocationNamespace, idles, f3SeqId, mountPath, dockerImage, runtimeClass)
+      return schedule(action, invocationNamespace, idles, f3SeqId, mountPath, dockerImage, runtimeClass)
     }
 
     println(s"Found at least one candidate container...")
