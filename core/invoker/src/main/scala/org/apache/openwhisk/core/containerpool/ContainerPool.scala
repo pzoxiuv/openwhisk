@@ -31,6 +31,9 @@ import scala.util.{Random, Try}
 
 import scalaj.http.{Http, HttpOptions}
 
+import java.nio.file.{Paths, Files}
+import java.nio.charset.StandardCharsets
+
 case class ColdStartKey(kind: String, memory: ByteSize)
 
 case object EmitMetrics
@@ -200,6 +203,12 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
             val preferredNodes = getPreferredNodes(possibleFiles)
             logging.info(this, s"preferred nodes:\n")
             preferredNodes.foreach(f => logging.info(this, s"preferred node: ${f}"))
+
+            if (preferredNodes.size > 0) {
+                val fileName = "/tmp/"+r.msg.transid.toString.stripPrefix("#")
+                logging.info(this, s"filename: ${fileName}\n")
+                Files.write(Paths.get(fileName), preferredNodes(0).getBytes(StandardCharsets.UTF_8))
+            }
 
 // So here we get a container, or create one?
 // We want to get the available containers, and rank them based on how much of the required data

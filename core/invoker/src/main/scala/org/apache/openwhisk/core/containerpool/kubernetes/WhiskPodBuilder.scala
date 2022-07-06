@@ -46,6 +46,9 @@ import org.apache.openwhisk.core.entity.ByteSize
 import scala.collection.JavaConverters._
 import scala.collection.mutable.Buffer
 
+import java.nio.file.{Paths, Files}
+import scala.io.Source._
+
 class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClientConfig) {
   private val template = config.podTemplate.map(_.value.getBytes(UTF_8))
   private val actionContainerName = KubernetesRestLogSourceStage.actionContainerName
@@ -102,6 +105,28 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
         .endMatchExpression()
         .endNodeSelectorTerm()
         .endRequiredDuringSchedulingIgnoredDuringExecution()
+        .endNodeAffinity()
+        .endAffinity()
+    }
+
+    val fileName = "/tmp/"+transid.toString.stripPrefix("#")
+    println(s"NEW CONTAINER FILENAME: ${fileName}")
+    if (Files.exists(Paths.get(fileName))) {
+      var preferredNode = fromFile(fileName).getLines.toList(0)
+      println(s"NEW CONTAINER PREFERRED NODE: ${preferredNode}")
+      val affinity = specBuilder
+        .editOrNewAffinity()
+        .editOrNewNodeAffinity()
+        .addNewPreferredDuringSchedulingIgnoredDuringExecution()
+        .withWeight(100)
+        .withNewPreference()
+        .addNewMatchExpression
+        .withKey("kubernetes.io/hostname")
+        .withOperator("In")
+        .withValues(preferredNode)
+        .endMatchExpression()
+        .endPreference()
+        .endPreferredDuringSchedulingIgnoredDuringExecution()
         .endNodeAffinity()
         .endAffinity()
     }
