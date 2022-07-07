@@ -112,23 +112,27 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
     val fileName = "/tmp/"+transid.toString.stripPrefix("#")
     println(s"NEW CONTAINER FILENAME: ${fileName}")
     if (Files.exists(Paths.get(fileName))) {
-      var preferredNode = fromFile(fileName).getLines.toList(0)
-      println(s"NEW CONTAINER PREFERRED NODE: ${preferredNode}")
-      val affinity = specBuilder
-        .editOrNewAffinity()
-        .editOrNewNodeAffinity()
-        .addNewPreferredDuringSchedulingIgnoredDuringExecution()
-        .withWeight(100)
-        .withNewPreference()
-        .addNewMatchExpression
-        .withKey("kubernetes.io/hostname")
-        .withOperator("In")
-        .withValues(preferredNode)
-        .endMatchExpression()
-        .endPreference()
-        .endPreferredDuringSchedulingIgnoredDuringExecution()
-        .endNodeAffinity()
-        .endAffinity()
+      var preferredNodes = fromFile(fileName).getLines.toList
+      println(s"NEW CONTAINER PREFERRED NODES: ${preferredNodes}")
+      if (preferredNodes.size > 0) {
+        var preferredNode = preferredNodes(0)
+        println(s"NEW CONTAINER PREFERRED NODE: ${preferredNode}")
+        val affinity = specBuilder
+          .editOrNewAffinity()
+          .editOrNewNodeAffinity()
+          .addNewPreferredDuringSchedulingIgnoredDuringExecution()
+          .withWeight(100)
+          .withNewPreference()
+          .addNewMatchExpression
+          .withKey("kubernetes.io/hostname")
+          .withOperator("In")
+          .withValues(preferredNode)
+          .endMatchExpression()
+          .endPreference()
+          .endPreferredDuringSchedulingIgnoredDuringExecution()
+          .endNodeAffinity()
+          .endAffinity()
+      }
     }
 
     if (environment.contains("__RUNTIME_CLASS") && environment("__RUNTIME_CLASS").length() > 0 && environment("__RUNTIME_CLASS") != "runc") {
