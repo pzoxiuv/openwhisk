@@ -174,7 +174,7 @@ class WhiskPodBuilder(client: NamespacedKubernetesClient, config: KubernetesClie
       .withName(actionContainerName)
       .withImage(docker_image)
       .withCommand("/bin/sh", "-c")
-      .withArgs("mkdir -p /action && curl -L http://action-proxy-service.openwhisk.svc.cluster.local:7777/proxy -o /action/proxy && chmod +x /action/proxy && /action/proxy")
+      .withArgs("mkdir -p /action && curl -L http://action-proxy-service.default.svc.cluster.local:7777/proxy -o /action/proxy && chmod +x /action/proxy && /action/proxy")
       .withEnv(envVars.asJava)
       .addNewPort()
       .withContainerPort(8080)
