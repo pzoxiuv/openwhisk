@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: action-proxy-service
+  namespace: openwhisk
+spec:
+  selector:
+    app: action-proxy
+  type: NodePort
+  ports:
+  - protocol: TCP
+    port: 7777
+    targetPort: 7777
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: action-proxy
+  namespace: openwhisk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: action-proxy
+  template:
+    metadata:
+      labels:
+        app: action-proxy
+    spec:
+      restartPolicy: Always
+      containers:
+      - image: alexmerenstein/f3-action-proxy:0.0.1
+        #command: ["/server", "-listen-port", "7777", "-save-file", "/log/save-file"]
+        #command: ["tail", "-f", "/dev/null"]
+        name: test
+        ports:
+        - containerPort: 7777
